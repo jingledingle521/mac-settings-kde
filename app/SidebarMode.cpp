@@ -696,6 +696,18 @@ void SidebarMode::initWidget()
             openLanding({{QStringLiteral("key"), QStringLiteral("general")}, {QStringLiteral("name"), QStringLiteral("General")}});
             QTimer::singleShot(800, this, [this] {
                 openFromLanding(qEnvironmentVariable("MAC_TEST_BACK"));
+                // MAC_TEST_BACK_CLICK: then click the page's ‹ (its own signal).
+                if (qEnvironmentVariableIsSet("MAC_TEST_BACK_CLICK")) {
+                    QTimer::singleShot(2500, this, [this] {
+                        for (QQuickWidget *quick : d->moduleView->findChildren<QQuickWidget *>()) {
+                            if (QQuickItem *root = quick->rootObject()) {
+                                if (QObject *back = root->findChild<QObject *>(QStringLiteral("macBack"))) {
+                                    QMetaObject::invokeMethod(back, "clicked");
+                                }
+                            }
+                        }
+                    });
+                }
             });
         });
     }

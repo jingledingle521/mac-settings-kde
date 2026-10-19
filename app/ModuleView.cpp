@@ -849,7 +849,9 @@ void ModuleView::updateBackButton()
 
 void ModuleView::requestBack()
 {
-    Q_EMIT backRequested();
+    // Going back closes the page, and the button with it: not while the
+    // button is still handling its click (Qt aborts if it's deleted there).
+    QMetaObject::invokeMethod(this, &ModuleView::backRequested, Qt::QueuedConnection);
 }
 
 void ModuleView::scheduleBackButtonUpdate()

@@ -8,6 +8,7 @@ import QtQuick.Controls as QQC2
 // (a widget laid over the page would be hidden under it). ModuleView makes
 // room for it with the header's titleLeftPadding.
 QQC2.ToolButton {
+    objectName: "macBack"
     required property QtObject view
     // Height of the page's header (Kirigami's global toolbar).
     property real headerHeight: 46
