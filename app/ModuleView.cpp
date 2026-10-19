@@ -14,6 +14,10 @@
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
 #include <QToolButton>
+#include <QQmlEngine>
+#include <QQmlContext>
+#include <QQmlComponent>
+#include <QLabel>
 #include <functional>
 #include <QTimer>
 #include <QDebug>
@@ -135,6 +139,8 @@ public:
     // MacSettings: back to the list of pages.
     QToolButton *mBack = nullptr;
     bool backVisible = false;
+    // MacSettings: macOS's grouped forms for the pages' FormLayouts.
+    std::unique_ptr<QQmlComponent> formPanels;
     QPushButton *mReset = nullptr;
     QPushButton *mDefault = nullptr;
     QPushButton *mHelp = nullptr;
@@ -377,6 +383,7 @@ void ModuleView::updatePageIconHeader(KPageWidgetItem *page)
     updateBackButton();
     QTimer::singleShot(0, this, &ModuleView::updateBackButton);
     QTimer::singleShot(250, this, &ModuleView::updateBackButton);
+    QTimer::singleShot(1000, this, &ModuleView::updateBackButton);
 }
 
 bool ModuleView::resolveChanges()
@@ -750,6 +757,14 @@ void ModuleView::updateBackButton()
         d->mBack->resize(d->mBack->sizeHint());
         d->mBack->raise();
     }
+    // macOS's bold title (KTitleWidget sets its label's font itself).
+    for (QLabel *label : d->mCustomHeader->findChildren<QLabel *>()) {
+        QFont font = label->font();
+        if (font.weight() != QFont::Bold) {
+            font.setWeight(QFont::Bold);
+            label->setFont(font);
+        }
+    }
     // Shift the title right to make room for it.
     d->mCustomHeader->setContentsMargins(18 + room,
                                          style()->pixelMetric(QStyle::PM_LayoutTopMargin),
@@ -787,8 +802,51 @@ void ModuleView::updateBackButton()
                 if (auto rootItem = qobject_cast<QQuickItem *>(root); rootItem && !title.isEmpty()) {
                     embolden(rootItem);
                 }
+                // macOS's grouped forms (qml/MacFormPanels.qml).
+                if (auto rootItem = qobject_cast<QQuickItem *>(root)) {
+                    decorateForms(rootItem);
+                }
+                // Sub-pages of the page get the same when they open.
+                if (pageStack) {
+                    connect(pageStack, SIGNAL(currentItemChanged()), this, SLOT(scheduleBackButtonUpdate()), Qt::UniqueConnection);
+                }
             }
         }
+    }
+}
+
+void ModuleView::scheduleBackButtonUpdate()
+{
+    QTimer::singleShot(0, this, &ModuleView::updateBackButton);
+    QTimer::singleShot(300, this, &ModuleView::updateBackButton);
+}
+
+void ModuleView::decorateForms(QQuickItem *item)
+{
+    for (QQuickItem *child : item->childItems()) {
+        if (QByteArray(child->metaObject()->className()).startsWith("FormLayout") && !child->property("_macForm").toBool()) {
+            // The form's hidden helper (its second child) sits at its
+            // top-left outside its grid: the panels go in there, below the rows.
+            const QList<QQuickItem *> parts = child->childItems();
+            if (parts.size() >= 2) {
+                if (!d->formPanels) {
+                    d->formPanels = std::make_unique<QQmlComponent>(d->engine.get(), QUrl(QStringLiteral("qrc:/qt/qml/org/kde/systemsettings/MacFormPanels.qml")));
+                }
+                QQmlContext *context = QQmlEngine::contextForObject(child);
+                QObject *panels = d->formPanels->createWithInitialProperties({{QStringLiteral("form"), QVariant::fromValue(child)}},
+                                                                             context ? context : d->engine->rootContext());
+                if (auto panelItem = qobject_cast<QQuickItem *>(panels)) {
+                    parts[1]->setZ(-1);
+                    panelItem->setParentItem(parts[1]);
+                    panelItem->setParent(parts[1]);
+                    child->setProperty("_macForm", true);
+                } else {
+                    qWarning() << "MacSettings: form panels" << d->formPanels->errors();
+                    delete panels;
+                }
+            }
+        }
+        decorateForms(child);
     }
 }
 

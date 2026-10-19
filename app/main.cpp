@@ -24,6 +24,12 @@
 
 int main(int argc, char *argv[])
 {
+    // MacSettings: Kirigami's forms in their "cards" style: rounded grouped
+    // panels with hairlines between rows, as macOS's System Settings has.
+    if (qEnvironmentVariableIsEmpty("KDE_KIRIGAMI_FORMS_STYLE")) {
+        qputenv("KDE_KIRIGAMI_FORMS_STYLE", "cards");
+    }
+
     auto format = QSurfaceFormat::defaultFormat();
     format.setOption(QSurfaceFormat::ResetNotification);
     QSurfaceFormat::setDefaultFormat(format);

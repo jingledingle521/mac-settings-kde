@@ -37,6 +37,7 @@ class MenuItem;
  * @author Mathias Soeken <msoeken@informatik.uni-bremen.de>
  * @author Ben Cooksley <bcooksley@kde.org>
  */
+class QQuickItem;
 class ModuleView : public QWidget
 {
     Q_OBJECT
@@ -190,6 +191,9 @@ private Q_SLOTS:
     void stateChanged();
     void authStatusChanged(KAuth::Action::AuthStatus status);
 
+private Q_SLOTS:
+    void scheduleBackButtonUpdate();
+
 Q_SIGNALS:
     /** MacSettings: the ‹ button was clicked. */
     void backRequested();
@@ -216,6 +220,7 @@ Q_SIGNALS:
 
 private:
     void updateBackButton();
+    void decorateForms(QQuickItem *item);
     class Private;
     Private *const d;
 };
