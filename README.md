@@ -1,4 +1,4 @@
-# settings-kde
+# mac-settings-kde
 
 **Mac Settings for KDE Plasma**: KDE's
 [System Settings](https://invent.kde.org/plasma/systemsettings) laid out
