@@ -20,6 +20,7 @@ class QAbstractItemView;
 class QAbstractItemModel;
 class QAction;
 class SidebarMode;
+class SettingsChrome;
 class MenuItem;
 class KActionCollection;
 
@@ -82,6 +83,18 @@ class SidebarMode : public QObject
     Q_PROPERTY(qreal headerHeight READ headerHeight WRITE setHeaderHeight NOTIFY headerHeightChanged)
     // TODO Plasma 6.6 use new Kirigami api instead
     Q_PROPERTY(qreal devicePixelRatio READ devicePixelRatio NOTIFY devicePixelRatioChanged)
+    // MacSettings: the Mac sidebar picks pages by plugin id rather than by
+    // KDE's category tree. The open page, the grouped entry whose list of
+    // pages is showing (or was, before one of them was opened), and whether
+    // there is a list to go back to.
+    Q_PROPERTY(QString activeModuleId READ activeModuleId NOTIFY activeModuleIdChanged)
+    Q_PROPERTY(QVariantMap landing READ landing NOTIFY landingChanged)
+    Q_PROPERTY(bool landingShown READ landingShown NOTIFY landingChanged)
+    Q_PROPERTY(bool canGoBack READ canGoBack NOTIFY landingChanged)
+    // MacSettings: the window has no title bar; the sidebar draws the
+    // stoplights (grayed while inactive) and moves the window.
+    Q_PROPERTY(bool windowActive READ windowActive NOTIFY windowActiveChanged)
+    Q_PROPERTY(bool windowMaximized READ windowMaximized NOTIFY windowActiveChanged)
 
 public:
     enum ApplicationMode {
@@ -140,6 +153,35 @@ public:
     Q_INVOKABLE void focusNext();
     Q_INVOKABLE void focusPrevious();
 
+    // MacSettings: pages by plugin id.
+    QString activeModuleId() const;
+    QVariantMap landing() const;
+    bool landingShown() const;
+    bool canGoBack() const;
+    /** Whether the page is installed and relevant here (a touchpad page
+     *  without a touchpad isn't). */
+    Q_INVOKABLE bool hasModule(const QString &pluginId) const;
+    /** name, icon, comment */
+    Q_INVOKABLE QVariantMap moduleInfo(const QString &pluginId) const;
+    /** Opens a page straight from the sidebar. */
+    Q_INVOKABLE void openModule(const QString &pluginId);
+    /** Shows a grouped entry's list of pages (`entry` as the sidebar has it:
+     *  key, name, sections). */
+    Q_INVOKABLE void openLanding(const QVariantMap &entry);
+    /** Opens a page from the list; back returns to the list. */
+    Q_INVOKABLE void openFromLanding(const QString &pluginId);
+    Q_INVOKABLE void goBack();
+
+    // MacSettings: window controls.
+    QWidget *sidebarWidget() const;
+    void setChrome(SettingsChrome *chrome);
+    bool windowActive() const;
+    bool windowMaximized() const;
+    Q_INVOKABLE void closeWindow();
+    Q_INVOKABLE void minimizeWindow();
+    Q_INVOKABLE void toggleMaximized();
+    Q_INVOKABLE void startMove();
+
     void setStartupModule(const QString &startupModule);
     QString startupModule() const;
 
@@ -166,6 +208,9 @@ private:
     MenuItem *homeItem() const;
 
 Q_SIGNALS:
+    void activeModuleIdChanged();
+    void landingChanged();
+    void windowActiveChanged();
     void activeCategoryRowChanged();
     void activeSubCategoryRowChanged();
     void activeSearchRowChanged();

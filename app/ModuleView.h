@@ -132,6 +132,16 @@ public:
      */
     KPluginMetaData activeModuleMetadata() const;
 
+    /** MacSettings: shows the ‹ button that goes back to the list of pages
+     *  this one was opened from. */
+    void setBackVisible(bool visible);
+
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
+
+public:
+
 public Q_SLOTS:
     /**
      * Loads the module specified by menuItem.\n
@@ -181,6 +191,8 @@ private Q_SLOTS:
     void authStatusChanged(KAuth::Action::AuthStatus status);
 
 Q_SIGNALS:
+    /** MacSettings: the ‹ button was clicked. */
+    void backRequested();
     /**
      * Emitted when the currently active module is changed. This occurs whenever the active module or
      * its configuration changes. This causes the window caption to update.
@@ -203,6 +215,7 @@ Q_SIGNALS:
     void showDefaultsIndicatorsChanged(bool show);
 
 private:
+    void updateBackButton();
     class Private;
     Private *const d;
 };

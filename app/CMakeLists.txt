@@ -8,6 +8,8 @@ target_sources(systemsettings PRIVATE
     main.cpp
     SettingsBase.cpp
     SettingsBase.h
+    SettingsChrome.cpp
+    SettingsChrome.h
     SidebarMode.cpp
     SidebarMode.h
     ExternalAppModule.cpp
@@ -26,8 +28,11 @@ target_sources(systemsettings PRIVATE
 ecm_target_qml_sources(systemsettings SOURCES
     qml/CategoriesPage.qml
     qml/CategoryItem.qml
+    qml/Entries.js
     qml/HamburgerMenuButton.qml
     qml/IntroPage.qml
+    qml/LandingPage.qml
+    qml/MacTile.qml
     qml/Main.qml
     qml/SideBarItem.qml
     qml/SubCategoryPage.qml

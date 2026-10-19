@@ -23,6 +23,8 @@
 class QScreen;
 class KHelpMenu;
 
+class SettingsChrome;
+
 class SettingsBase : public KMainWindow
 {
     Q_OBJECT
@@ -88,5 +90,7 @@ private:
     QStringList m_startupModuleArgs;
     KActionCollection *m_actionCollection;
     KHelpMenu *m_helpMenu;
+    // MacSettings: the window frame.
+    SettingsChrome *m_chrome = nullptr;
 };
 #endif

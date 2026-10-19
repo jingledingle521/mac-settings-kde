@@ -12,6 +12,15 @@
 
 #include <QDesktopServices>
 #include <QDialogButtonBox>
+#include <QHBoxLayout>
+#include <QToolButton>
+#include <functional>
+#include <QTimer>
+#include <QDebug>
+#include <QMouseEvent>
+#include <QWindow>
+#include <QQuickItem>
+#include <QQuickWidget>
 #include <QKeyEvent>
 #include <QLoggingCategory>
 #include <QMap>
@@ -40,6 +49,11 @@
 
 #include <cmath>
 
+// MacSettings: space above the page, under the window's rounded corners;
+// room for the ‹ button before the title.
+constexpr int TopGap = 10;
+constexpr int BackRoom = 30;
+
 class CustomTitle : public KTitleWidget
 {
     Q_OBJECT
@@ -56,6 +70,10 @@ CustomTitle::CustomTitle(QWidget *parent)
     : KTitleWidget(parent)
 {
     setTextSelectable(false);
+    // MacSettings: macOS's bold page title.
+    QFont title = font();
+    title.setWeight(QFont::Bold);
+    setFont(title);
     // Use the same left margin as QML titles for consistency (Kirigami/AbstractPageHeader.qml)
     // 18px is Standard Kirigami gridUnit for 10pt Noto Sans.
     // TODO: make this use a real gridUnit so it will adjust to the user's font,
@@ -97,24 +115,8 @@ void CustomTitle::colorsChanged()
 
 void CustomTitle::paintEvent(QPaintEvent *event)
 {
+    // MacSettings: a macOS toolbar title: no band of colour, no separator.
     KTitleWidget::paintEvent(event);
-
-    auto linearlyInterpolateDouble = [](double one, double two, double factor) {
-        return one + (two - one) * factor;
-    };
-
-    QPainter p(this);
-
-    const QColor window = palette().color(QPalette::Window);
-    const QColor text = palette().color(QPalette::Text);
-    const qreal balance = 0.2;
-
-    const QColor separator = QColor::fromHsv(std::fmod(linearlyInterpolateDouble(window.hue(), text.hue(), balance), 360.0),
-                                             qBound(0.0, linearlyInterpolateDouble(window.saturation(), text.saturation(), balance), 255.0),
-                                             qBound(0.0, linearlyInterpolateDouble(window.value(), text.value(), balance), 255.0),
-                                             qBound(0.0, linearlyInterpolateDouble(window.alpha(), text.alpha(), balance), 255.0));
-    p.fillRect(event->rect(), window);
-    p.fillRect(QRect(QPoint(0, height() - 1), QSize(width(), 1)), separator);
 }
 
 class ModuleView::Private
@@ -130,6 +132,9 @@ public:
     QVBoxLayout *mLayout = nullptr;
     QDialogButtonBox *mButtons = nullptr;
     QPushButton *mApply = nullptr;
+    // MacSettings: back to the list of pages.
+    QToolButton *mBack = nullptr;
+    bool backVisible = false;
     QPushButton *mReset = nullptr;
     QPushButton *mDefault = nullptr;
     QPushButton *mHelp = nullptr;
@@ -157,7 +162,18 @@ ModuleView::ModuleView(const std::shared_ptr<QQmlEngine> &engine, QWidget *paren
     d->mCustomHeader = new CustomTitle(this);
     d->mCustomHeader->setVisible(false);
 
+    // MacSettings: the window has no title bar. Leave room under its
+    // rounded corners (empty space here moves the window, see
+    // mousePressEvent), and float the ‹ button for pages opened from a list
+    // over the start of the page's header (setBackVisible).
+    rootLayout->setContentsMargins(0, TopGap, 0, 0);
     rootLayout->addWidget(d->mCustomHeader);
+    d->mBack = new QToolButton(this);
+    d->mBack->setIcon(QIcon::fromTheme(QStringLiteral("go-previous")));
+    d->mBack->setAutoRaise(true);
+    d->mBack->setToolTip(i18nc("@info:tooltip", "Back"));
+    d->mBack->setVisible(false);
+    connect(d->mBack, &QToolButton::clicked, this, &ModuleView::backRequested);
     rootLayout->addItem(d->mLayout);
     // d->mPageWidget->setPageHeader(d->mCustomHeader);
     d->mPageWidget->layout()->setContentsMargins(0, 0, 0, 0);
@@ -174,7 +190,7 @@ ModuleView::ModuleView(const std::shared_ptr<QQmlEngine> &engine, QWidget *paren
 
     // Create the buttons in it
     d->mApply = d->mButtons->addButton(QDialogButtonBox::Apply);
-    d->mApplyIcon = d->mApply->icon();
+    d->mApplyIcon = QIcon(); // MacSettings: no icons on buttons
     KGuiItem::assign(d->mApply, KStandardGuiItem::apply());
     d->mDefault = d->mButtons->addButton(QDialogButtonBox::RestoreDefaults);
     KGuiItem::assign(d->mDefault, KStandardGuiItem::defaults());
@@ -182,6 +198,12 @@ ModuleView::ModuleView(const std::shared_ptr<QQmlEngine> &engine, QWidget *paren
     KGuiItem::assign(d->mReset, KStandardGuiItem::reset());
     d->mHelp = d->mButtons->addButton(QDialogButtonBox::Help);
     KGuiItem::assign(d->mHelp, KStandardGuiItem::help());
+    // MacSettings: macOS's buttons carry no icons, and there is no Help
+    // button (F1 still opens the page's handbook).
+    for (QPushButton *button : {d->mApply, d->mDefault, d->mReset, d->mHelp}) {
+        button->setIcon(QIcon());
+    }
+
     // Set some more sensible tooltips
     d->mReset->setToolTip(i18n("Reset all current changes to previous values"));
     // Set Auto-Default mode ( KDE Bug #211187 )
@@ -349,6 +371,12 @@ void ModuleView::updatePageIconHeader(KPageWidgetItem *page)
             d->mCustomHeader->hide();
         }
     }
+
+    // MacSettings: make room for ‹ in the page's header, and restyle it:
+    // again once a QML page has built its header.
+    updateBackButton();
+    QTimer::singleShot(0, this, &ModuleView::updateBackButton);
+    QTimer::singleShot(250, this, &ModuleView::updateBackButton);
 }
 
 bool ModuleView::resolveChanges()
@@ -545,14 +573,15 @@ void ModuleView::updateButtons()
     d->mReset->setEnabled(change);
     d->mReset->setVisible(buttons & KCModule::Apply);
     d->mHelp->setEnabled(buttons & KCModule::Help);
-    d->mHelp->setVisible(buttons & KCModule::Help);
+    // MacSettings: no Help button; F1 still works when the page has help.
+    d->mHelp->setVisible(false);
 
     d->mButtons->setVisible(buttons != KCModule::NoAdditionalButton);
 }
 
 void ModuleView::keyPressEvent(QKeyEvent *event)
 {
-    if (event->key() == Qt::Key_F1 && d->mHelp->isVisible() && d->mHelp->isEnabled()) {
+    if (event->key() == Qt::Key_F1 && d->mHelp->isEnabled()) {
         d->mHelp->animateClick();
         event->accept();
         return;
@@ -703,6 +732,87 @@ bool ModuleView::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
+void ModuleView::setBackVisible(bool visible)
+{
+    d->backVisible = visible;
+    updateBackButton();
+}
+
+void ModuleView::updateBackButton()
+{
+    const bool visible = d->backVisible;
+    const int room = visible ? BackRoom : 0;
+    d->mBack->setVisible(visible);
+    if (visible) {
+        // Centred on the page's header: the QML header or our title row.
+        const int headerHeight = d->mCustomHeader->isVisible() ? d->mCustomHeader->height() : 46;
+        d->mBack->move(8, TopGap + (headerHeight - d->mBack->sizeHint().height()) / 2);
+        d->mBack->resize(d->mBack->sizeHint());
+        d->mBack->raise();
+    }
+    // Shift the title right to make room for it.
+    d->mCustomHeader->setContentsMargins(18 + room,
+                                         style()->pixelMetric(QStyle::PM_LayoutTopMargin),
+                                         style()->pixelMetric(QStyle::PM_LayoutRightMargin),
+                                         style()->pixelMetric(QStyle::PM_LayoutBottomMargin));
+    KCModule *kcm = d->mPages.value(d->mPageWidget->currentPage());
+    if (kcm && kcm->inherits("KCModuleQml")) {
+        if (auto quick = kcm->widget()->findChild<QQuickWidget *>()) {
+            if (QObject *root = quick->rootObject()) {
+                auto pageStack = root->property("pageStack").value<QObject *>();
+                auto toolBar = pageStack ? pageStack->property("globalToolBar").value<QObject *>() : nullptr;
+                if (toolBar) {
+                    // Kirigami's default is one grid unit (18 px).
+                    toolBar->setProperty("titleLeftPadding", 18 + room);
+                    // A macOS toolbar: the page's own colour, no separator.
+                    toolBar->setProperty("separatorVisible", false);
+                    toolBar->setProperty("colorSet", 1); // Kirigami.Theme.Window
+                }
+                // And a bold title: the header's Kirigami.Heading showing the
+                // current page's title (headers live in the visual tree).
+                QObject *currentPage = pageStack ? pageStack->property("currentItem").value<QObject *>() : nullptr;
+                const QString title = currentPage ? currentPage->property("title").toString() : QString();
+                std::function<void(QQuickItem *)> embolden = [&](QQuickItem *item) {
+                    for (QQuickItem *child : item->childItems()) {
+                        if (QByteArray(child->metaObject()->className()).startsWith("Heading") && child->property("text").toString() == title) {
+                            QFont font = child->property("font").value<QFont>();
+                            if (font.weight() != QFont::Bold) {
+                                font.setWeight(QFont::Bold);
+                                child->setProperty("font", font);
+                            }
+                        }
+                        embolden(child);
+                    }
+                };
+                if (auto rootItem = qobject_cast<QQuickItem *>(root); rootItem && !title.isEmpty()) {
+                    embolden(rootItem);
+                }
+            }
+        }
+    }
+}
+
+void ModuleView::mousePressEvent(QMouseEvent *event)
+{
+    // MacSettings: empty space around the page (above it, its title row,
+    // the button row) moves the window, as a title bar would.
+    if (event->button() == Qt::LeftButton) {
+        if (QWindow *handle = window()->windowHandle()) {
+            handle->startSystemMove();
+            return;
+        }
+    }
+    QWidget::mousePressEvent(event);
+}
+
+void ModuleView::mouseDoubleClickEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton) {
+        window()->isMaximized() ? window()->showNormal() : window()->showMaximized();
+        return;
+    }
+    QWidget::mouseDoubleClickEvent(event);
+}
+
 #include "moc_ModuleView.cpp"
 #include "ModuleView.moc"
-

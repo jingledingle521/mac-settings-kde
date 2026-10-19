@@ -7,6 +7,7 @@
  */
 
 #include "SettingsBase.h"
+#include "SettingsChrome.h"
 #include "ModuleView.h"
 #include "SidebarMode.h"
 #include "kcmmetadatahelpers.h"
@@ -41,6 +42,9 @@ SettingsBase::SettingsBase(SidebarMode::ApplicationMode mode, const QString &sta
     , m_actionCollection(new KActionCollection(this))
     , m_helpMenu(new KHelpMenu(this))
 {
+    // MacSettings: macOS's window: no title bar, glass sidebar to the top.
+    m_chrome = new SettingsChrome(this);
+
     // Prepare the view area
     stackedWidget = new QStackedWidget(this);
     setCentralWidget(stackedWidget);
@@ -283,6 +287,9 @@ void SettingsBase::loadCurrentView()
     viewChange(false);
 
     stackedWidget->setCurrentWidget(view->mainWidget());
+
+    m_chrome->setSidebar(view->sidebarWidget());
+    view->setChrome(m_chrome);
 
     view->giveFocus();
 

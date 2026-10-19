@@ -11,10 +11,12 @@
 #include "MenuModel.h"
 #include "MenuProxyModel.h"
 #include "ModuleView.h"
+#include "SettingsChrome.h"
 #include "kcmmetadatahelpers.h"
 
 #include <KAboutData>
 #include <KActionCollection>
+#include <KCModuleData>
 #include <KCModuleLoader>
 #include <KConfigGroup>
 #include <KDescendantsProxyModel>
@@ -34,6 +36,7 @@
 #include <QQuickItem>
 #include <QQuickWidget>
 #include <QStandardPaths>
+#include <QWindow>
 
 FocusHackWidget::FocusHackWidget(QWidget *parent)
     : QWidget(parent)
@@ -118,6 +121,17 @@ public:
     SubcategoryModel *subCategoryModel = nullptr;
     FocusHackWidget *mainWidget = nullptr;
     QQuickWidget *placeHolderWidget = nullptr;
+    // MacSettings: a grouped entry's list of pages, shown in place of the
+    // page view.
+    QQuickWidget *landingWidget = nullptr;
+    QVariantMap landing;
+    bool landingShown = false;
+    // The open page was picked from the list (so back goes to it).
+    bool fromLanding = false;
+    // Set while openModule/openFromLanding call loadModule, so loadModule
+    // knows the sidebar didn't go through the search list.
+    bool macNavigating = false;
+    SettingsChrome *chrome = nullptr;
     QHBoxLayout *mainLayout = nullptr;
     MenuModel *model = nullptr;
     MenuProxyModel *categorizedModel = nullptr;
@@ -299,6 +313,19 @@ void SidebarMode::loadModule(const QModelIndex &activeModule, const QStringList 
         return;
     }
 
+    // MacSettings: a page picked from search leaves any list behind.
+    if (!d->macNavigating && (d->landingShown || d->fromLanding)) {
+        if (d->landingShown && !d->moduleView->resolveChanges()) {
+            return;
+        }
+        d->landingShown = false;
+        d->fromLanding = false;
+        if (d->landingWidget) {
+            d->landingWidget->hide();
+        }
+        Q_EMIT landingChanged();
+    }
+
     auto mi = activeModule.data(MenuModel::MenuItemRole).value<MenuItem *>();
 
     if (!mi) {
@@ -319,6 +346,7 @@ void SidebarMode::loadModule(const QModelIndex &activeModule, const QStringList 
     d->moduleView->closeModules();
 
     d->moduleView->loadModule(activeModule, args);
+    Q_EMIT activeModuleIdChanged();
 
     if (activeModule.model() == d->categorizedModel) {
         const int newCategoryRow = activeModule.row();
@@ -636,10 +664,28 @@ void SidebarMode::initWidget()
     });
 
     d->quickWidget->installEventFilter(this);
+    // MacSettings: see-through, over the window's glass.
+    d->quickWidget->setAttribute(Qt::WA_AlwaysStackOnTop);
+    d->quickWidget->setClearColor(Qt::transparent);
 
     d->mainLayout->addWidget(d->quickWidget);
     d->moduleView->hide();
     d->mainLayout->addWidget(d->moduleView);
+
+    // MacSettings: the list of pages of a grouped sidebar entry, in the
+    // page view's place.
+    d->landingWidget = new QQuickWidget(d->engine.get(), d->mainWidget);
+    d->landingWidget->quickWindow()->setTitle(i18n("Pages"));
+    d->landingWidget->setResizeMode(QQuickWidget::SizeRootObjectToView);
+    d->landingWidget->rootContext()->setContextProperty(QStringLiteral("systemsettings"), this);
+    d->landingWidget->rootContext()->setContextObject(new KLocalizedQmlContext(d->landingWidget));
+    d->landingWidget->setSource(QUrl(QStringLiteral("qrc:/qt/qml/org/kde/systemsettings/LandingPage.qml")));
+    // See-through, so the window's rounded corners show.
+    d->landingWidget->setAttribute(Qt::WA_AlwaysStackOnTop);
+    d->landingWidget->setClearColor(Qt::transparent);
+    d->landingWidget->hide();
+    d->mainLayout->addWidget(d->landingWidget);
+    connect(d->moduleView, &ModuleView::backRequested, this, &SidebarMode::goBack);
 
     if (!startupModule().isEmpty()) {
         initPlaceHolderWidget();
@@ -771,5 +817,172 @@ void SidebarMode::retranslateQml()
 {
     d->engine->retranslate();
 }
+
+// MacSettings: pages by plugin id ------------------------------------------
+
+QString SidebarMode::activeModuleId() const
+{
+    if (d->landingShown) {
+        return QString();
+    }
+    return d->moduleView->activeModuleMetadata().pluginId();
+}
+
+QVariantMap SidebarMode::landing() const
+{
+    return d->landing;
+}
+
+bool SidebarMode::landingShown() const
+{
+    return d->landingShown;
+}
+
+bool SidebarMode::canGoBack() const
+{
+    return d->fromLanding && !d->landingShown;
+}
+
+bool SidebarMode::hasModule(const QString &pluginId) const
+{
+    MenuItem *item = rootItem()->descendantForModule(pluginId);
+    return item && (!item->moduleData() || item->moduleData()->isRelevant());
+}
+
+QVariantMap SidebarMode::moduleInfo(const QString &pluginId) const
+{
+    MenuItem *item = rootItem()->descendantForModule(pluginId);
+    if (!item) {
+        return {};
+    }
+    return {
+        {QStringLiteral("name"), item->name()},
+        {QStringLiteral("icon"), item->iconName()},
+        {QStringLiteral("comment"), item->comment()},
+    };
+}
+
+void SidebarMode::openModule(const QString &pluginId)
+{
+    MenuItem *item = rootItem()->descendantForModule(pluginId);
+    if (!item) {
+        return;
+    }
+    if (d->landingShown && !d->moduleView->resolveChanges()) {
+        return;
+    }
+    const bool changed = d->landingShown || d->fromLanding || !d->landing.isEmpty();
+    d->landingShown = false;
+    d->fromLanding = false;
+    d->landing.clear();
+    d->landingWidget->hide();
+    if (changed) {
+        Q_EMIT landingChanged();
+    }
+    d->macNavigating = true;
+    loadModule(d->model->indexForItem(item));
+    d->macNavigating = false;
+    d->moduleView->setBackVisible(false);
+}
+
+void SidebarMode::openLanding(const QVariantMap &entry)
+{
+    if (!d->moduleView->resolveChanges()) {
+        return;
+    }
+    d->moduleView->closeModules();
+    d->landing = entry;
+    d->landingShown = true;
+    d->fromLanding = false;
+    if (d->placeHolderWidget) {
+        d->placeHolderWidget->hide();
+    }
+    d->moduleView->hide();
+    d->landingWidget->show();
+    Q_EMIT landingChanged();
+    Q_EMIT activeModuleIdChanged();
+}
+
+void SidebarMode::openFromLanding(const QString &pluginId)
+{
+    MenuItem *item = rootItem()->descendantForModule(pluginId);
+    if (!item) {
+        return;
+    }
+    d->landingShown = false;
+    d->fromLanding = true;
+    d->landingWidget->hide();
+    d->macNavigating = true;
+    loadModule(d->model->indexForItem(item));
+    d->macNavigating = false;
+    d->moduleView->show();
+    d->moduleView->setBackVisible(true);
+    Q_EMIT landingChanged();
+}
+
+void SidebarMode::goBack()
+{
+    if (!canGoBack() || !d->moduleView->resolveChanges()) {
+        return;
+    }
+    d->moduleView->closeModules();
+    d->moduleView->hide();
+    d->moduleView->setBackVisible(false);
+    d->landingShown = true;
+    d->fromLanding = false;
+    d->landingWidget->show();
+    Q_EMIT landingChanged();
+    Q_EMIT activeModuleIdChanged();
+}
+
+
+// MacSettings: window controls --------------------------------------------
+
+QWidget *SidebarMode::sidebarWidget() const
+{
+    return d->quickWidget;
+}
+
+void SidebarMode::setChrome(SettingsChrome *chrome)
+{
+    d->chrome = chrome;
+    connect(chrome, &SettingsChrome::activeChanged, this, &SidebarMode::windowActiveChanged);
+    Q_EMIT windowActiveChanged();
+}
+
+bool SidebarMode::windowActive() const
+{
+    return d->mainWidget->window()->isActiveWindow();
+}
+
+bool SidebarMode::windowMaximized() const
+{
+    return d->mainWidget->window()->isMaximized();
+}
+
+void SidebarMode::closeWindow()
+{
+    d->mainWidget->window()->close();
+}
+
+void SidebarMode::minimizeWindow()
+{
+    d->mainWidget->window()->showMinimized();
+}
+
+void SidebarMode::toggleMaximized()
+{
+    QWidget *window = d->mainWidget->window();
+    window->isMaximized() ? window->showNormal() : window->showMaximized();
+    Q_EMIT windowActiveChanged();
+}
+
+void SidebarMode::startMove()
+{
+    if (QWindow *handle = d->mainWidget->window()->windowHandle()) {
+        handle->startSystemMove();
+    }
+}
+
 
 #include "moc_SidebarMode.cpp"
