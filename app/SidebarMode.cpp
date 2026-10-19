@@ -37,6 +37,7 @@
 #include <QQuickWidget>
 #include <QStandardPaths>
 #include <QWindow>
+#include <QTimer>
 
 FocusHackWidget::FocusHackWidget(QWidget *parent)
     : QWidget(parent)
@@ -323,6 +324,8 @@ void SidebarMode::loadModule(const QModelIndex &activeModule, const QStringList 
         if (d->landingWidget) {
             d->landingWidget->hide();
         }
+        d->moduleView->setBackVisible(false);
+        d->moduleView->show();
         Q_EMIT landingChanged();
     }
 
@@ -686,6 +689,16 @@ void SidebarMode::initWidget()
     d->landingWidget->hide();
     d->mainLayout->addWidget(d->landingWidget);
     connect(d->moduleView, &ModuleView::backRequested, this, &SidebarMode::goBack);
+    // MacSettings: MAC_TEST_BACK=<page id> opens General's list and then that
+    // page from it, as clicking would (for checking the ‹ button).
+    if (qEnvironmentVariableIsSet("MAC_TEST_BACK")) {
+        QTimer::singleShot(2000, this, [this] {
+            openLanding({{QStringLiteral("key"), QStringLiteral("general")}, {QStringLiteral("name"), QStringLiteral("General")}});
+            QTimer::singleShot(800, this, [this] {
+                openFromLanding(qEnvironmentVariable("MAC_TEST_BACK"));
+            });
+        });
+    }
 
     if (!startupModule().isEmpty()) {
         initPlaceHolderWidget();

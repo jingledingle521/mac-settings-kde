@@ -136,6 +136,8 @@ public:
     /** MacSettings: shows the ‹ button that goes back to the list of pages
      *  this one was opened from. */
     void setBackVisible(bool visible);
+    /** MacSettings: the ‹ inside a QML page's header was clicked. */
+    Q_INVOKABLE void requestBack();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;

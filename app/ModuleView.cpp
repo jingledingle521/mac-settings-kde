@@ -14,6 +14,8 @@
 #include <QDialogButtonBox>
 #include <QHBoxLayout>
 #include <QToolButton>
+#include <QPointer>
+#include <QHash>
 #include <QQmlEngine>
 #include <QQmlContext>
 #include <QQmlComponent>
@@ -141,6 +143,9 @@ public:
     bool backVisible = false;
     // MacSettings: macOS's grouped forms for the pages' FormLayouts.
     std::unique_ptr<QQmlComponent> formPanels;
+    // The ‹ inside each QML page's header.
+    std::unique_ptr<QQmlComponent> backComponent;
+    QHash<QQuickItem *, QPointer<QQuickItem>> qmlBack;
     QPushButton *mReset = nullptr;
     QPushButton *mDefault = nullptr;
     QPushButton *mHelp = nullptr;
@@ -749,8 +754,11 @@ void ModuleView::updateBackButton()
 {
     const bool visible = d->backVisible;
     const int room = visible ? BackRoom : 0;
-    d->mBack->setVisible(visible);
-    if (visible) {
+    KCModule *current = d->mPages.value(d->mPageWidget->currentPage());
+    const bool qmlPage = current && current->inherits("KCModuleQml");
+    // On QML pages the ‹ lives in the page's own header (see below).
+    d->mBack->setVisible(visible && !qmlPage);
+    if (visible && !qmlPage) {
         // Centred on the page's header: the QML header or our title row.
         const int headerHeight = d->mCustomHeader->isVisible() ? d->mCustomHeader->height() : 46;
         d->mBack->move(8, TopGap + (headerHeight - d->mBack->sizeHint().height()) / 2);
@@ -776,6 +784,30 @@ void ModuleView::updateBackButton()
             if (QObject *root = quick->rootObject()) {
                 auto pageStack = root->property("pageStack").value<QObject *>();
                 auto toolBar = pageStack ? pageStack->property("globalToolBar").value<QObject *>() : nullptr;
+                if (auto rootItem = qobject_cast<QQuickItem *>(root)) {
+                    QQuickItem *back = d->qmlBack.value(rootItem);
+                    if (!back && visible) {
+                        if (!d->backComponent) {
+                            d->backComponent = std::make_unique<QQmlComponent>(d->engine.get(), QUrl(QStringLiteral("qrc:/qt/qml/org/kde/systemsettings/MacBackButton.qml")));
+                        }
+                        QQmlContext *context = QQmlEngine::contextForObject(rootItem);
+                        back = qobject_cast<QQuickItem *>(d->backComponent->createWithInitialProperties({{QStringLiteral("view"), QVariant::fromValue<QObject *>(this)}},
+                                                                                                         context ? context : d->engine->rootContext()));
+                        if (back) {
+                            back->setParentItem(rootItem);
+                            back->setParent(rootItem);
+                            d->qmlBack.insert(rootItem, back);
+                        } else {
+                            qWarning() << "MacSettings: back button" << d->backComponent->errors();
+                        }
+                    }
+                    if (back) {
+                        back->setVisible(visible);
+                        if (toolBar) {
+                            back->setProperty("headerHeight", toolBar->property("preferredHeight"));
+                        }
+                    }
+                }
                 if (toolBar) {
                     // Kirigami's default is one grid unit (18 px).
                     toolBar->setProperty("titleLeftPadding", 18 + room);
@@ -813,6 +845,11 @@ void ModuleView::updateBackButton()
             }
         }
     }
+}
+
+void ModuleView::requestBack()
+{
+    Q_EMIT backRequested();
 }
 
 void ModuleView::scheduleBackButtonUpdate()

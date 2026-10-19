@@ -108,6 +108,8 @@ Item {
 
     // macOS's sidebar selection (the accent blue, as in the Mac menus).
     readonly property color selectionColor: "#315bef"
+    // Where a row's icon starts: well inside its rounded selection.
+    readonly property real rowInset: Kirigami.Units.smallSpacing * 2 + 10
 
     // The window has no title bar (SettingsChrome paints the glass behind
     // this sidebar): empty space at the top moves it, double-click zooms.
@@ -172,8 +174,8 @@ Item {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Kirigami.Units.largeSpacing
-                        anchors.rightMargin: Kirigami.Units.largeSpacing
+                        anchors.leftMargin: root.rowInset
+                        anchors.rightMargin: root.rowInset
                         spacing: Kirigami.Units.largeSpacing
 
                         KirigamiComponents.Avatar {
@@ -224,8 +226,8 @@ Item {
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: Kirigami.Units.largeSpacing
-                            anchors.rightMargin: Kirigami.Units.largeSpacing
+                            anchors.leftMargin: root.rowInset
+                            anchors.rightMargin: root.rowInset
                             spacing: Kirigami.Units.mediumSpacing
 
                             MacTile {
@@ -275,8 +277,8 @@ Item {
 
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: Kirigami.Units.largeSpacing
-                        anchors.rightMargin: Kirigami.Units.largeSpacing
+                        anchors.leftMargin: root.rowInset
+                        anchors.rightMargin: root.rowInset
                         spacing: Kirigami.Units.mediumSpacing
 
                         Kirigami.Icon {

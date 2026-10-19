@@ -32,6 +32,7 @@ ecm_target_qml_sources(systemsettings SOURCES
     qml/HamburgerMenuButton.qml
     qml/IntroPage.qml
     qml/LandingPage.qml
+    qml/MacBackButton.qml
     qml/MacFormPanels.qml
     qml/MacTile.qml
     qml/Main.qml
