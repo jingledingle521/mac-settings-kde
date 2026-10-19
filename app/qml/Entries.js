@@ -4,7 +4,9 @@
 // MacSettings: the sidebar, arranged as macOS's System Settings. Each entry
 // is a coloured tile (a white glyph from the icon theme on a macOS colour)
 // and the KDE pages (KCM plugin ids) it covers: one page opens directly;
-// several open a list of them, in sections. Pages that aren't installed or
+// several open a list of them, in sections. An entry with a `page` opens
+// this app's own page instead (Mac<Page>Page.qml), with KDE's pages behind
+// its Details…/Advanced… buttons. Pages that aren't installed or
 // don't apply here are left out, and so are entries left with none.
 
 .pragma library
@@ -38,8 +40,8 @@ const pageNames = {
 // Groups, separated by space in the sidebar as on macOS.
 const groups = [
     [
-        { key: "wifi", name: "Wi‑Fi", glyph: "network-wireless-symbolic", color: blue, sections: [["kcm_networkmanagement"]] },
-        { key: "bluetooth", name: "Bluetooth", glyph: "bluetooth-symbolic", color: blue, sections: [["kcm_bluetooth"]] },
+        { key: "wifi", name: "Wi‑Fi", glyph: "network-wireless-symbolic", color: blue, page: "wifi", sections: [["kcm_networkmanagement"]] },
+        { key: "bluetooth", name: "Bluetooth", glyph: "bluetooth-symbolic", color: blue, page: "bluetooth", sections: [["kcm_bluetooth"]] },
         { key: "network", name: "Network", glyph: "globe-symbolic", color: blue, sections: [
             ["kcm_networkmanagement", "kcm_proxy", "kcm_netpref"],
         ] },

@@ -46,7 +46,9 @@ Rectangle {
                 RowLayout {
                     spacing: Kirigami.Units.largeSpacing
 
+                    // (This app's own pages carry the tile in their first card.)
                     MacTile {
+                        visible: !page.entry.page
                         glyph: page.entry.glyph || ""
                         tint: page.entry.color || "#8e8e93"
                         size: 34
@@ -58,8 +60,18 @@ Rectangle {
                     }
                 }
 
+                // Wi‑Fi and Bluetooth: this app's own pages.
+                Loader {
+                    Layout.fillWidth: true
+                    active: (page.entry.page || "") !== ""
+                    visible: active
+                    source: page.entry.page === "wifi" ? "MacWifiPage.qml"
+                          : page.entry.page === "bluetooth" ? "MacBluetoothPage.qml"
+                          : ""
+                }
+
                 Repeater {
-                    model: page.entry.sections || []
+                    model: page.entry.page ? [] : (page.entry.sections || [])
 
                     // One rounded group of rows with hairlines between them.
                     delegate: Rectangle {

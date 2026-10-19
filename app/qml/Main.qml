@@ -54,7 +54,7 @@ Item {
 
     function open(entry) {
         selectedKey = entry.key;
-        if (entry.modules.length === 1) {
+        if (entry.modules.length === 1 && !entry.page) {
             systemsettings.openModule(entry.modules[0]);
         } else {
             systemsettings.openLanding({
@@ -63,6 +63,7 @@ Item {
                 glyph: entry.glyph,
                 color: entry.color,
                 sections: entry.sections,
+                page: entry.page || "",
                 pageNames: Entries.pageNames
             });
         }
@@ -96,6 +97,11 @@ Item {
         running: true
         interval: 0
         onTriggered: {
+            const test = root.entries.find(e => e.key === systemsettings.testEntry());
+            if (test) {
+                root.open(test);
+                return;
+            }
             const id = systemsettings.activeModuleId;
             if (id === "" || id === "kcm_landingpage") {
                 const general = root.entries.find(e => e.key === "general");

@@ -961,6 +961,11 @@ void SidebarMode::goBack()
 }
 
 
+QString SidebarMode::testEntry() const
+{
+    return qEnvironmentVariable("MAC_TEST_ENTRY");
+}
+
 // MacSettings: window controls --------------------------------------------
 
 QWidget *SidebarMode::sidebarWidget() const

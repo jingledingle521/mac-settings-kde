@@ -33,6 +33,11 @@ ecm_target_qml_sources(systemsettings SOURCES
     qml/IntroPage.qml
     qml/LandingPage.qml
     qml/MacBackButton.qml
+    qml/MacBluetoothPage.qml
+    qml/MacGroup.qml
+    qml/MacGroupRow.qml
+    qml/MacSwitch.qml
+    qml/MacWifiPage.qml
     qml/MacFormPanels.qml
     qml/MacTile.qml
     qml/Main.qml

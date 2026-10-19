@@ -171,6 +171,9 @@ public:
     /** Opens a page from the list; back returns to the list. */
     Q_INVOKABLE void openFromLanding(const QString &pluginId);
     Q_INVOKABLE void goBack();
+    /** For checking without clicking: the sidebar entry to open at startup
+     *  (MAC_TEST_ENTRY, e.g. "wifi"), or empty. */
+    Q_INVOKABLE QString testEntry() const;
 
     // MacSettings: window controls.
     QWidget *sidebarWidget() const;
