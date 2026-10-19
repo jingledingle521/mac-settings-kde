@@ -350,9 +350,11 @@ Item {
 
     // The window's close, minimize and zoom buttons, as on macOS: glyphs on
     // hover, gray while the window is inactive.
+    // Sized like the window decorations' (MacSequoia draws ~22 px circles
+    // 35 px apart at 1.5×), so they match other windows' stoplights.
     component Stoplights: Row {
         id: lights
-        spacing: 8
+        spacing: 8.8
         readonly property bool lit: systemsettings.windowActive || lightsHover.hovered
 
         HoverHandler {
@@ -368,9 +370,9 @@ Item {
             delegate: Rectangle {
                 id: light
                 required property var modelData
-                width: 12
-                height: 12
-                radius: 6
+                width: 14.5
+                height: width
+                radius: width / 2
                 color: !lights.lit ? "#505054" : lightMouse.pressed ? Qt.darker(modelData.color, 1.25) : modelData.color
                 border.width: 0.5
                 border.color: Qt.rgba(0, 0, 0, 0.2)
@@ -381,7 +383,7 @@ Item {
                     visible: lightsHover.hovered
                     text: light.modelData.glyph
                     color: Qt.rgba(0, 0, 0, 0.6)
-                    font.pixelSize: 11
+                    font.pixelSize: 12
                     font.bold: true
                 }
                 MouseArea {
