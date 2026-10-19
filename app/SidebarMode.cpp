@@ -7,6 +7,8 @@
 
 #include "SidebarMode.h"
 
+#include <QApplication>
+
 #include "MenuItem.h"
 #include "MenuModel.h"
 #include "MenuProxyModel.h"
@@ -964,6 +966,34 @@ void SidebarMode::goBack()
 QString SidebarMode::testEntry() const
 {
     return qEnvironmentVariable("MAC_TEST_ENTRY");
+}
+
+void SidebarMode::setPageTitles(const QVariantMap &titles)
+{
+    QHash<QString, QString> names;
+    for (auto it = titles.begin(); it != titles.end(); ++it) {
+        names.insert(it.key(), it.value().toString());
+    }
+    d->moduleView->setPageTitles(names);
+}
+
+QString SidebarMode::testTour() const
+{
+    return qEnvironmentVariable("MAC_TEST_TOUR");
+}
+
+QStringList SidebarMode::testTourOnly() const
+{
+    return qEnvironmentVariable("MAC_TEST_TOUR_ONLY").split(QLatin1Char(','), Qt::SkipEmptyParts);
+}
+
+void SidebarMode::testShot(const QString &name)
+{
+    if (name.isEmpty()) {
+        qApp->quit();
+        return;
+    }
+    d->mainWidget->window()->grab().save(testTour() + QLatin1Char('/') + name + QStringLiteral(".png"));
 }
 
 // MacSettings: window controls --------------------------------------------

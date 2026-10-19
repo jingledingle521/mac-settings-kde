@@ -38,6 +38,7 @@ ecm_target_qml_sources(systemsettings SOURCES
     qml/MacGroupRow.qml
     qml/MacSwitch.qml
     qml/MacWifiPage.qml
+    qml/MacWifiDetails.qml
     qml/MacFormPanels.qml
     qml/MacTile.qml
     qml/Main.qml

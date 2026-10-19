@@ -93,6 +93,59 @@ Item {
         }
     }
 
+    // Pages are titled by the names they have here: an entry's name for its
+    // one page, the list names (Entries.pageNames) for the rest.
+    Component.onCompleted: {
+        const titles = Object.assign({}, Entries.pageNames);
+        for (const e of entries) {
+            if (e.modules.length === 1 && !e.page) {
+                titles[e.modules[0]] = e.name;
+            }
+        }
+        systemsettings.setPageTitles(titles);
+    }
+
+    // MAC_TEST_TOUR: every entry, and every page of its list, one picture each.
+    Timer {
+        id: tour
+        property var steps: []
+        interval: 2500
+        repeat: true
+        running: systemsettings.testTour() !== ""
+        onTriggered: {
+            if (steps.length === 0 && !done) {
+                for (const e of root.entries) {
+                    steps.push({ shot: e.key, run: () => root.open(e) });
+                    if (e.modules.length > 1 || e.page) {
+                        for (const m of e.modules) {
+                            steps.push({ shot: e.key + "--" + m, run: () => { root.open(e); systemsettings.openFromLanding(m); } });
+                        }
+                    }
+                }
+                const only = systemsettings.testTourOnly();
+                if (only.length > 0) {
+                    steps = steps.filter(step => only.indexOf(step.shot) >= 0);
+                }
+                done = true;
+            }
+            if (pending !== "") {
+                systemsettings.testShot(pending);
+                pending = "";
+                return;
+            }
+            const step = steps.shift();
+            console.warn("tour:", step ? step.shot : "end");
+            if (!step) {
+                systemsettings.testShot("");
+                return;
+            }
+            step.run();
+            pending = step.shot;
+        }
+        property bool done: false
+        property string pending: ""
+    }
+
     // Start on General, as macOS does, unless a page was asked for.
     Timer {
         running: true

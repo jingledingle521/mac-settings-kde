@@ -10,7 +10,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.plasma.networkmanagement as PlasmaNM
 
 // MacSettings: macOS's Wi‑Fi page: Wi‑Fi on or off, the network you're on
-// (Details… opens KDE's full network page), your known networks, and the
+// (Details… opens its details sheet, MacWifiDetails), your known networks, and the
 // other networks around, each with Connect. Uses Plasma's network module,
 // like the Network widget; passwords for new networks are asked for by
 // Plasma's network agent.
@@ -48,7 +48,8 @@ ColumnLayout {
                 uuid: r.model.Uuid || "",
                 connectionPath: r.model.ConnectionPath,
                 devicePath: r.model.DevicePath,
-                specificPath: r.model.SpecificPath
+                specificPath: r.model.SpecificPath,
+                details: r.model.ConnectionDetailsModel
             };
             if (n.state === PlasmaNM.Enums.Activated || n.state === PlasmaNM.Enums.Activating) {
                 cur.push(n);
@@ -64,7 +65,13 @@ ColumnLayout {
         current = cur;
         known = kn;
         others = ot;
+        // MAC_TEST_TOUR_ONLY=wifi,wifi-details: the tour's picture of Details.
+        if (cur.length > 0 && !detailsTested && systemsettings.testTourOnly().indexOf("wifi-details") >= 0) {
+            detailsTested = true;
+            detailsSheet.show(cur[0]);
+        }
     }
+    property bool detailsTested: false
 
     function connect(n) {
         if (n.uuid !== "") {
@@ -76,6 +83,10 @@ ColumnLayout {
 
     PlasmaNM.Handler {
         id: handler
+    }
+    MacWifiDetails {
+        id: detailsSheet
+        onForgetRequested: network => handler.removeConnection(network.connectionPath)
     }
     PlasmaNM.EnabledConnections {
         id: enabledConnections
@@ -189,7 +200,7 @@ ColumnLayout {
                 }
                 QQC2.Button {
                     text: i18n("Details…")
-                    onClicked: systemsettings.openFromLanding("kcm_networkmanagement")
+                    onClicked: detailsSheet.show(currentRow.modelData)
                 }
             }
         }

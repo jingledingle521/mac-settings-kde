@@ -23,6 +23,9 @@
 #include <functional>
 #include <QTimer>
 #include <QDebug>
+#include <QFormLayout>
+#include <QGroupBox>
+#include <QTabWidget>
 #include <QMouseEvent>
 #include <QWindow>
 #include <QQuickItem>
@@ -125,6 +128,35 @@ void CustomTitle::paintEvent(QPaintEvent *event)
     KTitleWidget::paintEvent(event);
 }
 
+// MacSettings: draws macOS's rounded panel behind the forms (QFormLayout)
+// of a widget page that aren't already in a group box or a tab, on the
+// widget that holds them.
+class FormPanelPainter : public QObject
+{
+public:
+    using QObject::QObject;
+    QList<QPointer<QFormLayout>> forms;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::Paint) {
+            auto *widget = static_cast<QWidget *>(watched);
+            QPainter painter(widget);
+            painter.setRenderHint(QPainter::Antialiasing);
+            const bool dark = widget->palette().color(QPalette::Window).lightnessF() < 0.5;
+            painter.setPen(QPen(dark ? QColor(255, 255, 255, 20) : QColor(0, 0, 0, 20), 1));
+            painter.setBrush(dark ? QColor(255, 255, 255, 13) : QColor(0, 0, 0, 10));
+            for (const QPointer<QFormLayout> &form : std::as_const(forms)) {
+                if (form && form->rowCount() > 0 && !form->geometry().isEmpty()) {
+                    painter.drawRoundedRect(QRectF(form->geometry()).adjusted(0.5, 0.5, -0.5, -0.5), 10, 10);
+                }
+            }
+        }
+        return false;
+    }
+};
+
 class ModuleView::Private
 {
 public:
@@ -141,6 +173,9 @@ public:
     // MacSettings: back to the list of pages.
     QToolButton *mBack = nullptr;
     bool backVisible = false;
+    QHash<QString, QString> pageTitles;
+    // Forms a QML page builds later (another tab, settings loaded late).
+    QTimer *formWatch = nullptr;
     // MacSettings: macOS's grouped forms for the pages' FormLayouts.
     std::unique_ptr<QQmlComponent> formPanels;
     // The ‹ inside each QML page's header.
@@ -179,6 +214,16 @@ ModuleView::ModuleView(const std::shared_ptr<QQmlEngine> &engine, QWidget *paren
     // over the start of the page's header (setBackVisible).
     rootLayout->setContentsMargins(0, TopGap, 0, 0);
     rootLayout->addWidget(d->mCustomHeader);
+    d->formWatch = new QTimer(this);
+    d->formWatch->setInterval(1000);
+    connect(d->formWatch, &QTimer::timeout, this, [this] {
+        KCModule *kcm = d->mPages.value(d->mPageWidget->currentPage());
+        auto quick = kcm && kcm->inherits("KCModuleQml") && isVisible() ? kcm->widget()->findChild<QQuickWidget *>() : nullptr;
+        if (auto root = quick ? qobject_cast<QQuickItem *>(quick->rootObject()) : nullptr) {
+            decorateForms(root);
+        }
+    });
+    d->formWatch->start();
     d->mBack = new QToolButton(this);
     d->mBack->setIcon(QIcon::fromTheme(QStringLiteral("go-previous")));
     d->mBack->setAutoRaise(true);
@@ -367,7 +412,7 @@ void ModuleView::updatePageIconHeader(KPageWidgetItem *page)
         return;
     }
 
-    const QString &moduleName = kcm->metaData().name();
+    const QString moduleName = d->pageTitles.value(kcm->metaData().pluginId(), kcm->metaData().name());
     page->setHeader(moduleName);
     page->setIcon(QIcon::fromTheme(kcm->metaData().iconName()));
 
@@ -542,6 +587,10 @@ void ModuleView::activeModuleChanged(KPageWidgetItem *current, KPageWidgetItem *
     }
 
     updatePageIconHeader(current);
+    // MacSettings: and its forms, if it's made of widgets.
+    if (KCModule *kcm = d->mPages.value(current); kcm && !kcm->inherits("KCModuleQml")) {
+        decorateWidgetForms(kcm->widget());
+    }
     updateScrollAreaFocusPolicy();
     moduleShowDefaultsIndicators(d->mDefaultsIndicatorsVisible);
 }
@@ -744,6 +793,11 @@ bool ModuleView::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
+void ModuleView::setPageTitles(const QHash<QString, QString> &titles)
+{
+    d->pageTitles = titles;
+}
+
 void ModuleView::setBackVisible(bool visible)
 {
     d->backVisible = visible;
@@ -818,6 +872,14 @@ void ModuleView::updateBackButton()
                 // And a bold title: the header's Kirigami.Heading showing the
                 // current page's title (headers live in the visual tree).
                 QObject *currentPage = pageStack ? pageStack->property("currentItem").value<QObject *>() : nullptr;
+                // The page's first page takes the name it has in the sidebar
+                // or list (its sub-pages keep theirs).
+                if (currentPage && pageStack->property("depth").toInt() == 1) {
+                    const QString name = d->pageTitles.value(current ? current->metaData().pluginId() : QString());
+                    if (!name.isEmpty() && currentPage->property("title").toString() != name) {
+                        currentPage->setProperty("title", name);
+                    }
+                }
                 const QString title = currentPage ? currentPage->property("title").toString() : QString();
                 std::function<void(QQuickItem *)> embolden = [&](QQuickItem *item) {
                     for (QQuickItem *child : item->childItems()) {
@@ -858,6 +920,55 @@ void ModuleView::scheduleBackButtonUpdate()
 {
     QTimer::singleShot(0, this, &ModuleView::updateBackButton);
     QTimer::singleShot(300, this, &ModuleView::updateBackButton);
+}
+
+void ModuleView::decorateWidgetForms(QWidget *page)
+{
+    if (!page || page->property("_macForms").toBool()) {
+        return;
+    }
+    page->setProperty("_macForms", true);
+    for (QFormLayout *form : page->findChildren<QFormLayout *>()) {
+        // Labels at the left, as in the QML pages' panels.
+        form->setLabelAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        form->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
+        QWidget *holder = form->parentWidget();
+        if (!holder) {
+            continue;
+        }
+        // A form within another form, a group box or a framed tab is
+        // already on a panel.
+        bool onPanel = false;
+        for (QWidget *w = holder; w && w != page->parentWidget(); w = w->parentWidget()) {
+            const auto *tabs = qobject_cast<QTabWidget *>(w);
+            if (qobject_cast<QGroupBox *>(w) || (tabs && !tabs->documentMode())) {
+                onPanel = true;
+                break;
+            }
+        }
+        for (QObject *o = form->parent(); o && !onPanel; o = o->parent()) {
+            if (qobject_cast<QFormLayout *>(o)) {
+                onPanel = true;
+            }
+            if (o == holder) {
+                break;
+            }
+        }
+        if (onPanel) {
+            continue;
+        }
+        auto *painter = dynamic_cast<FormPanelPainter *>(holder->property("_macFormPanels").value<QObject *>());
+        if (!painter) {
+            painter = new FormPanelPainter(holder);
+            holder->installEventFilter(painter);
+            holder->setProperty("_macFormPanels", QVariant::fromValue<QObject *>(painter));
+        }
+        painter->forms.append(form);
+        const int pad = 12;
+        const QMargins m = form->contentsMargins();
+        form->setContentsMargins(qMax(m.left(), pad), qMax(m.top(), pad - 2), qMax(m.right(), pad), qMax(m.bottom(), pad - 2));
+        holder->update();
+    }
 }
 
 void ModuleView::decorateForms(QQuickItem *item)

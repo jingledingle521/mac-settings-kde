@@ -153,7 +153,8 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    KDBusService service(KDBusService::Unique);
+    // MacSettings: a picture tour runs beside the open window.
+    KDBusService service(qEnvironmentVariableIsSet("MAC_TEST_TOUR") ? KDBusService::Multiple : KDBusService::Unique);
 
     KCrash::initialize();
 

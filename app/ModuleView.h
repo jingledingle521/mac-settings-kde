@@ -136,6 +136,9 @@ public:
     /** MacSettings: shows the ‹ button that goes back to the list of pages
      *  this one was opened from. */
     void setBackVisible(bool visible);
+    /** MacSettings: the names pages go by in the sidebar and lists, by
+     *  plugin id, shown as their titles in place of KDE's. */
+    void setPageTitles(const QHash<QString, QString> &titles);
     /** MacSettings: the ‹ inside a QML page's header was clicked. */
     Q_INVOKABLE void requestBack();
 
@@ -223,6 +226,8 @@ Q_SIGNALS:
 private:
     void updateBackButton();
     void decorateForms(QQuickItem *item);
+    // MacSettings: macOS's form look for a widget page's QFormLayouts.
+    void decorateWidgetForms(QWidget *page);
     class Private;
     Private *const d;
 };

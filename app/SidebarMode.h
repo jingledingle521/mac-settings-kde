@@ -174,6 +174,14 @@ public:
     /** For checking without clicking: the sidebar entry to open at startup
      *  (MAC_TEST_ENTRY, e.g. "wifi"), or empty. */
     Q_INVOKABLE QString testEntry() const;
+    /** The names pages go by here (plugin id → name), for their titles. */
+    Q_INVOKABLE void setPageTitles(const QVariantMap &titles);
+    /** MAC_TEST_TOUR=<dir>: the sidebar visits every page and saves a
+     *  picture of the window for each (testShot), then quits. */
+    Q_INVOKABLE QString testTour() const;
+    /** MAC_TEST_TOUR_ONLY=<pictures,…>: just these (as named by the tour). */
+    Q_INVOKABLE QStringList testTourOnly() const;
+    Q_INVOKABLE void testShot(const QString &name);
 
     // MacSettings: window controls.
     QWidget *sidebarWidget() const;
