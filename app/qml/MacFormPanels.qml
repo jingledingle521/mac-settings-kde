@@ -55,7 +55,10 @@ Item {
                 // The section's own row (a separator, or an empty item).
                 child.Layout.topMargin = pad;
                 child.Layout.bottomMargin = pad;
-                if (item.Kirigami.FormData.label.length === 0) {
+                // A bare break (a separator or empty item) shows as the
+                // gap; a message placed as a section (Battery's warnings)
+                // stays.
+                if (item.Kirigami.FormData.label.length === 0 && !(item instanceof Kirigami.InlineMessage)) {
                     item.opacity = 0;
                 }
             }
@@ -85,7 +88,11 @@ Item {
                 continue;
             }
             if (isSection(item)) {
-                current = null;
+                // A hidden message between rows (Battery's warnings) doesn't
+                // break the panel.
+                if (item.visible || item.Kirigami.FormData.label.length > 0) {
+                    current = null;
+                }
                 continue;
             }
             if (!item.visible || item.height <= 0) {

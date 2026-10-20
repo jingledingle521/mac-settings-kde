@@ -974,7 +974,13 @@ void ModuleView::decorateWidgetForms(QWidget *page)
 void ModuleView::decorateForms(QQuickItem *item)
 {
     for (QQuickItem *child : item->childItems()) {
-        if (QByteArray(child->metaObject()->className()).startsWith("FormLayout") && !child->property("_macForm").toBool()) {
+        // A FormLayout, or a page's own component built on one (Battery's
+        // ProfileConfig, Displays' OutputPanel).
+        bool isForm = false;
+        for (const QMetaObject *meta = child->metaObject(); meta && !isForm; meta = meta->superClass()) {
+            isForm = QByteArray(meta->className()).startsWith("FormLayout");
+        }
+        if (isForm && !child->property("_macForm").toBool()) {
             // The form's hidden helper (its second child) sits at its
             // top-left outside its grid: the panels go in there, below the rows.
             const QList<QQuickItem *> parts = child->childItems();

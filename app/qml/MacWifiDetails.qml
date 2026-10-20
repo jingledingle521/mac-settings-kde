@@ -214,6 +214,7 @@ QQC2.Popup {
             QQC2.Button {
                 text: i18n("Done")
                 highlighted: true
+                Accessible.defaultButton: true
                 onClicked: sheet.close()
             }
         }
