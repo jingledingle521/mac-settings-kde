@@ -19,7 +19,7 @@ T.Switch {
         width: control.width
         height: control.height
         radius: height / 2
-        color: control.checked ? "#315bef"
+        color: control.checked ? Kirigami.Theme.focusColor
              : Qt.rgba(Kirigami.Theme.textColor.r, Kirigami.Theme.textColor.g, Kirigami.Theme.textColor.b, control.hovered ? 0.22 : 0.16)
         opacity: control.enabled ? 1 : 0.45
         Behavior on color {

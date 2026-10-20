@@ -166,8 +166,9 @@ Item {
         }
     }
 
-    // macOS's sidebar selection (the accent blue, as in the Mac menus).
-    readonly property color selectionColor: "#315bef"
+    // macOS's sidebar selection: the accent (Appearance's colour, which KDE
+    // keeps as the focus colour), as in the menus.
+    readonly property color selectionColor: Kirigami.Theme.focusColor
     // Where a row's icon starts: well inside its rounded selection.
     readonly property real rowInset: Kirigami.Units.smallSpacing * 2 + 10
 
