@@ -27,6 +27,8 @@ ColumnLayout {
     property var nearby: []
     // The device being paired by Connect, connected once paired.
     property var pairing: null
+    // Why the last Connect failed, shown under Nearby Devices.
+    property string pairError: ""
     // Whether we made the adapter discoverable (and so undo it on leaving).
     property bool madeDiscoverable: false
 
@@ -75,7 +77,22 @@ ColumnLayout {
             return;
         }
         pairing = d;
-        d.pair();
+        pairError = "";
+        const call = d.pair();
+        call.finished.connect(() => {
+            if (page.pairing !== d) {
+                return;
+            }
+            if (call.error === BluezQt.PendingCall.AlreadyExists) {
+                // Paired already: onPairedChanged won't come, connect now.
+                d.trusted = true;
+                d.connectToDevice();
+                page.pairing = null;
+            } else if (call.error !== BluezQt.PendingCall.NoError) {
+                page.pairing = null;
+                page.pairError = i18n("Couldn't connect to “%1”. Put it in pairing mode and try again.", d.name);
+            }
+        });
     }
 
     // While the page is open: discoverable and scanning, as on macOS.
@@ -226,6 +243,15 @@ ColumnLayout {
             }
         }
     }
+    QQC2.Label {
+        Layout.fillWidth: true
+        Layout.leftMargin: Kirigami.Units.smallSpacing
+        visible: page.on && page.pairError !== ""
+        text: page.pairError
+        color: Kirigami.Theme.negativeTextColor
+        font: Kirigami.Theme.smallFont
+        wrapMode: Text.Wrap
+    }
 
     RowLayout {
         Layout.fillWidth: true
@@ -294,13 +320,16 @@ ColumnLayout {
         QQC2.Button {
             id: actionButton
             visible: deviceRow.hoveredRow && !deviceRow.busy
-            text: deviceRow.modelData.connected ? i18n("Disconnect") : i18n("Connect")
+            // A nearby device can be connected without being paired (a
+            // keyboard that still has an old pairing): Connect pairs it.
+            readonly property bool disconnects: deviceRow.modelData.paired && deviceRow.modelData.connected
+            text: disconnects ? i18n("Disconnect") : i18n("Connect")
             onClicked: {
                 const d = page.device(deviceRow.modelData.ubi);
                 if (!d) {
                     return;
                 }
-                if (deviceRow.modelData.connected) {
+                if (disconnects) {
                     d.disconnectFromDevice();
                 } else if (deviceRow.modelData.paired) {
                     d.connectToDevice();
